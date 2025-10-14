@@ -1,2 +1,2 @@
-# LifeSimulator
+# Simluator
 A simulator
