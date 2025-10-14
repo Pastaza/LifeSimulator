@@ -1,0 +1,1 @@
+{"crypto_balance": 0, "total_cost_basis": 0, "realized_pnl": -2.7936726615554335}
