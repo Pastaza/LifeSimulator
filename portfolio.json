@@ -1,0 +1,51 @@
+{
+  "bank_balance": 20903692.39118883,
+  "cash_on_hand": 0.7262529856179754,
+  "game_day": 1116,
+  "current_job": {
+    "title": "Chief Technology Officer",
+    "salary": 300000,
+    "education_req": "Computer Science Degree"
+  },
+  "education": [
+    "Business Certificate",
+    "Programming Bootcamp",
+    "Finance Degree",
+    "Computer Science Degree"
+  ],
+  "assets": {
+    "crypto": {
+      "BTC": {
+        "quantity": 0.05,
+        "avg_cost_price": 48067.96456696146,
+        "total_cost_basis": 2403.398228348073
+      }
+    },
+    "stocks": {},
+    "forex": {
+      "NZD/USD": {
+        "quantity": 1000.0,
+        "total_cost_basis": 6741.272748944619
+      }
+    },
+    "indices": {},
+    "bonds": {}
+  },
+  "realized_pnl": {
+    "crypto": 4536.349072294139,
+    "stocks": 5565.459851125555,
+    "forex": 0.0,
+    "indices": 25309.06283139938,
+    "bonds": 0.0
+  },
+  "real_estate": {
+    "owned_properties": [],
+    "current_residence": "Living with Parents"
+  },
+  "bills": {
+    "rent_mortgage": 0,
+    "utilities": 50,
+    "living_expenses": 100
+  },
+  "last_bill_day": 1110
+}
