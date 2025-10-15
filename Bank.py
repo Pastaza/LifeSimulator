@@ -1,227 +1,157 @@
 import pygame
 import sys
 import os
+import json
 
 # Initialize Pygame
 pygame.init()
 
-# Screen dimensions
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Banking System")
+# --- Screen and Scaling Setup ---
+VIRTUAL_WIDTH = 800
+VIRTUAL_HEIGHT = 600
+screen = pygame.display.set_mode((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
+virtual_screen = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
+pygame.display.set_caption("Main Menu")
 
 # Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (200, 200, 200)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
+WHITE = (255, 255, 255); BLACK = (0, 0, 0); GREEN = (0, 255, 0); GRAY = (200, 200, 200); BLUE = (0, 0, 255)
 
 # Fonts
 font = pygame.font.Font(None, 36)
+small_font = pygame.font.Font(None, 28)
 title_font = pygame.font.Font(None, 72)
 
-# Balance file
-BALANCE_FILE = "/home/zach/Banking life sim/balance.txt"
+# --- Data and Utility Functions ---
+PORTFOLIO_FILE = "portfolio.json"
 
-def load_balance():
-    if os.path.exists(BALANCE_FILE):
-        with open(BALANCE_FILE, 'r') as f:
-            try:
-                return float(f.read())
-            except (ValueError, IOError):
-                return 1000.0
-    return 1000.0
+def load_portfolio():
+    if os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE, 'r') as f: return json.load(f)
+    # Create a default portfolio if one doesn't exist
+    default_portfolio = {
+        "bank_balance": 1000.0, "cash_on_hand": 500.0, "game_day": 1, "last_bill_day": 1,
+        "current_job": None, "education": [], "assets": {},
+        "realized_pnl": {},
+        "real_estate": {"owned_properties": [], "current_residence": "Living with Parents"},
+        "bills": {"rent_mortgage": 0, "utilities": 50, "living_expenses": 100}
+    }
+    with open(PORTFOLIO_FILE, 'w') as f: json.dump(default_portfolio, f, indent=2)
+    return default_portfolio
 
-def save_balance(balance):
-    with open(BALANCE_FILE, 'w') as f:
-        f.write(str(balance))
+def save_portfolio(data):
+    with open(PORTFOLIO_FILE, 'w') as f: json.dump(data, f, indent=2)
 
-# Bank account
-balance = load_balance()
-
-# Input box
-input_box = pygame.Rect(300, 300, 200, 50)
-input_text = ""
-input_active = False
-
-# Buttons
-deposit_button = pygame.Rect(150, 350, 150, 50)
-withdraw_button = pygame.Rect(350, 350, 150, 50)
-balance_button = pygame.Rect(550, 350, 150, 50)
-exit_button = pygame.Rect(350, 450, 150, 50)
-confirm_button = pygame.Rect(325, 400, 150, 50)
-back_button = pygame.Rect(20, 550, 100, 30)
-
-
-# Message
-message = ""
-message_color = BLACK
-
-# Game state
-state = "main_menu"
-
-# Interest timer
-interest_rate = 0.0375
-last_interest_time = pygame.time.get_ticks()
-
-def draw_text(text, font, color, surface, x, y):
+def draw_text(surface, text, font, color, x, y, center=True):
     textobj = font.render(text, 1, color)
-    textrect = textobj.get_rect(center=(x, y))
+    textrect = textobj.get_rect(center=(x, y)) if center else textobj.get_rect(topleft=(x, y))
     surface.blit(textobj, textrect)
 
 def draw_rounded_rect(surface, rect, color, corner_radius):
     pygame.draw.rect(surface, color, rect, border_radius=corner_radius)
 
-def bank_main():
-    global input_text, input_active, balance, message, message_color, state, last_interest_time
+# --- Main Menu Loop ---
+def main_menu():
+    global screen, virtual_screen
+    is_fullscreen = False
+    message, message_timer = "", 0
+    last_day_checked = 0
+
+    # Buttons
+    work_button = pygame.Rect(50, 150, 200, 60)
+    bank_button = pygame.Rect(300, 250, 200, 50)
+    trading_button = pygame.Rect(300, 310, 200, 50)
+    games_button = pygame.Rect(300, 370, 200, 50)
+    jobs_button = pygame.Rect(550, 250, 200, 50)
+    education_button = pygame.Rect(550, 310, 200, 50)
+    housing_button = pygame.Rect(550, 370, 200, 50)
+    exit_button = pygame.Rect(300, 450, 200, 50)
+    fullscreen_button = pygame.Rect(10, 10, 130, 30)
 
     running = True
     while running:
-        screen.fill(WHITE)
+        portfolio = load_portfolio()
+        game_day = portfolio.get("game_day", 1)
 
-        # Interest calculation
-        current_time = pygame.time.get_ticks()
-        if current_time - last_interest_time > 60000: # 1 minute
-            balance *= (1 + interest_rate)
-            save_balance(balance)
-            last_interest_time = current_time
-            message = f"You earned interest! New balance: ${balance:.2f}"
-            message_color = GREEN
+        # --- Monthly Bills and Updates ---
+        if game_day > portfolio.get("last_bill_day", 0) and game_day % 30 == 0:
+            bills = portfolio.get("bills", {})
+            total_bills = sum(bills.values())
+            portfolio["bank_balance"] -= total_bills
+            portfolio["last_bill_day"] = game_day
+            # Property Appreciation
+            for prop in portfolio.get("real_estate", {}).get("owned_properties", []):
+                prop["market_value"] = prop.get("market_value", prop["price"]) * (1 + prop["appreciation"] / 12)
+            save_portfolio(portfolio)
+            message, message_timer = f"Monthly bills (${total_bills:,.2f}) paid!", pygame.time.get_ticks() + 4000
 
-        # Draw balance
-        balance_text = font.render(f"Balance: ${balance:.2f}", 1, BLACK)
-        screen.blit(balance_text, (30, 30))
-
-        # Draw timer
-        time_remaining = 60 - (current_time - last_interest_time) // 1000
-        timer_text = font.render(f"Next interest in: {time_remaining}s", 1, BLACK)
-        screen.blit(timer_text, (SCREEN_WIDTH - timer_text.get_width() - 20, 20))
-
-
+        # --- Event Handling ---
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                sys.exit()
-
-            if state == "main_menu":
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if deposit_button.collidepoint(event.pos):
-                        state = "deposit"
-                        input_text = ""
-                        message = ""
-                    elif withdraw_button.collidepoint(event.pos):
-                        state = "withdraw"
-                        input_text = ""
-                        message = ""
-                    elif balance_button.collidepoint(event.pos):
-                        message = f"Current balance: ${balance:.2f}"
-                        message_color = BLACK
-                    elif exit_button.collidepoint(event.pos):
-                        running = False
-                        pygame.quit()
-                        sys.exit()
-
-            elif state in ["deposit", "withdraw"]:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if input_box.collidepoint(event.pos):
-                        input_active = not input_active
+            if event.type == pygame.QUIT: running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = (event.pos[0] * (VIRTUAL_WIDTH / screen.get_width()), event.pos[1] * (VIRTUAL_HEIGHT / screen.get_height()))
+                if fullscreen_button.collidepoint(mouse_pos):
+                    is_fullscreen = not is_fullscreen
+                    if is_fullscreen:
+                        info = pygame.display.Info()
+                        screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
                     else:
-                        input_active = False
+                        screen = pygame.display.set_mode((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
+                elif exit_button.collidepoint(mouse_pos): running = False
+                elif work_button.collidepoint(mouse_pos):
+                    current_job = portfolio.get("current_job")
+                    if current_job:
+                        daily_salary = current_job['salary'] / 365
+                        portfolio["cash_on_hand"] += daily_salary
+                        portfolio["game_day"] += 1
+                        save_portfolio(portfolio)
+                        message, message_timer = f"You earned ${daily_salary:.2f}!", pygame.time.get_ticks() + 2000
+                # ... (Navigation button logic) ...
+                elif bank_button.collidepoint(mouse_pos): import Bank; is_fullscreen, _ = Bank.bank_main(is_fullscreen)
+                elif trading_button.collidepoint(mouse_pos): import trading_view; is_fullscreen, _ = trading_view.trading_main(is_fullscreen)
+                elif games_button.collidepoint(mouse_pos): import games_menu; is_fullscreen, _ = games_menu.games_menu(is_fullscreen)
+                elif jobs_button.collidepoint(mouse_pos): import jobs; is_fullscreen, _ = jobs.jobs_main(is_fullscreen)
+                elif education_button.collidepoint(mouse_pos): import education; is_fullscreen, _ = education.education_main(is_fullscreen)
+                elif housing_button.collidepoint(mouse_pos): import housing; is_fullscreen, _ = housing.housing_main(is_fullscreen)
 
-                    if confirm_button.collidepoint(event.pos):
-                        try:
-                            amount = float(input_text)
-                            if state == "deposit":
-                                if amount > 0:
-                                    balance += amount
-                                    save_balance(balance)
-                                    message = f"Deposited ${amount:.2f}"
-                                    message_color = GREEN
-                                else:
-                                    message = "Invalid amount"
-                                    message_color = RED
-                            elif state == "withdraw":
-                                if 0 < amount <= balance:
-                                    balance -= amount
-                                    save_balance(balance)
-                                    message = f"Withdrew ${amount:.2f}"
-                                    message_color = GREEN
-                                elif amount > balance:
-                                    message = "Insufficient funds"
-                                    message_color = RED
-                                else:
-                                    message = "Invalid amount"
-                                    message_color = RED
-                            input_text = ""
-                            state = "main_menu"
-                        except ValueError:
-                            message = "Invalid input"
-                            message_color = RED
-                    
-                    if back_button.collidepoint(event.pos):
-                        state = "main_menu"
-                        message = ""
+        # --- Drawing ---
+        virtual_screen.fill(WHITE)
+        portfolio = load_portfolio()
+        game_day = portfolio.get("game_day", 1)
+        cash_on_hand = portfolio.get("cash_on_hand", 0)
+        current_job = portfolio.get("current_job")
 
+        draw_text(virtual_screen, f"Day: {game_day}", small_font, BLACK, 200, 30)
+        draw_text(virtual_screen, f"Cash: ${portfolio['cash_on_hand']:.2f}", small_font, BLACK, VIRTUAL_WIDTH - 200, 30)
+        draw_text(virtual_screen, "Life Simulator", title_font, BLACK, VIRTUAL_WIDTH // 2, 70)
 
-                if event.type == pygame.KEYDOWN:
-                    if input_active:
-                        if event.key == pygame.K_RETURN:
-                            # Deactivate input box on enter
-                            input_active = False
-                        elif event.key == pygame.K_BACKSPACE:
-                            input_text = input_text[:-1]
-                        else:
-                            input_text += event.unicode
-        
-        # State-based rendering
-        if state == "main_menu":
-            # Draw title
-            draw_text("MarketForge", title_font, BLACK, screen, SCREEN_WIDTH // 2, 150)
-            draw_text("Bank", title_font, BLACK, screen, SCREEN_WIDTH // 2, 220)
+        draw_rounded_rect(virtual_screen, fullscreen_button, GRAY, 10)
+        draw_text(virtual_screen, "Fullscreen" if not is_fullscreen else "Windowed", small_font, BLACK, fullscreen_button.centerx, fullscreen_button.centery)
 
-            draw_rounded_rect(screen, deposit_button, GREEN, 15)
-            draw_text("Deposit", font, BLACK, screen, deposit_button.centerx, deposit_button.centery)
-            draw_rounded_rect(screen, withdraw_button, RED, 15)
-            draw_text("Withdraw", font, BLACK, screen, withdraw_button.centerx, withdraw_button.centery)
-            draw_rounded_rect(screen, balance_button, GRAY, 15)
-            draw_text("Balance", font, BLACK, screen, balance_button.centerx, balance_button.centery)
-            draw_rounded_rect(screen, exit_button, GRAY, 15)
-            draw_text("Exit", font, BLACK, screen, exit_button.centerx, exit_button.centery)
-        
-        elif state == "deposit":
-            draw_text("Enter amount to deposit:", font, BLACK, screen, SCREEN_WIDTH // 2, 200)
-            # Draw input box
-            pygame.draw.rect(screen, BLACK if input_active else GRAY, input_box, 2, border_radius=15)
-            draw_text(input_text, font, BLACK, screen, input_box.centerx, input_box.centery)
-            # Draw confirm button
-            draw_rounded_rect(screen, confirm_button, GREEN, 15)
-            draw_text("Deposit", font, BLACK, screen, confirm_button.centerx, confirm_button.centery)
-            # Draw back button
-            draw_rounded_rect(screen, back_button, GRAY, 15)
-            draw_text("Back", font, BLACK, screen, back_button.centerx, back_button.centery)
+        work_color = GRAY if not current_job else GREEN
+        draw_rounded_rect(virtual_screen, work_button, work_color, 15)
+        draw_text(virtual_screen, "Go to Work", font, BLACK, work_button.centerx, work_button.centery)
+        if current_job:
+            daily_salary = current_job['salary'] / 365
+            draw_text(virtual_screen, f"(+${daily_salary:.2f})", small_font, BLACK, work_button.centerx, work_button.centery + 25)
 
+        draw_rounded_rect(virtual_screen, bank_button, BLUE, 15); draw_text(virtual_screen, "Bank", font, WHITE, bank_button.centerx, bank_button.centery)
+        draw_rounded_rect(virtual_screen, trading_button, BLUE, 15); draw_text(virtual_screen, "Trading", font, WHITE, trading_button.centerx, trading_button.centery)
+        draw_rounded_rect(virtual_screen, games_button, BLUE, 15); draw_text(virtual_screen, "Games", font, WHITE, games_button.centerx, games_button.centery)
+        draw_rounded_rect(virtual_screen, jobs_button, BLUE, 15); draw_text(virtual_screen, "Job Market", font, WHITE, jobs_button.centerx, jobs_button.centery)
+        draw_rounded_rect(virtual_screen, education_button, BLUE, 15); draw_text(virtual_screen, "Education", font, WHITE, education_button.centerx, education_button.centery)
+        draw_rounded_rect(virtual_screen, housing_button, BLUE, 15); draw_text(virtual_screen, "Real Estate", font, WHITE, housing_button.centerx, housing_button.centery)
+        draw_rounded_rect(virtual_screen, exit_button, GRAY, 15); draw_text(virtual_screen, "Exit", font, BLACK, exit_button.centerx, exit_button.centery)
 
-        elif state == "withdraw":
-            draw_text("Enter amount to withdraw:", font, BLACK, screen, SCREEN_WIDTH // 2, 200)
-            # Draw input box
-            pygame.draw.rect(screen, BLACK if input_active else GRAY, input_box, 2, border_radius=15)
-            draw_text(input_text, font, BLACK, screen, input_box.centerx, input_box.centery)
-            # Draw confirm button
-            draw_rounded_rect(screen, confirm_button, RED, 15)
-            draw_text("Withdraw", font, BLACK, screen, confirm_button.centerx, confirm_button.centery)
-            # Draw back button
-            draw_rounded_rect(screen, back_button, GRAY, 15)
-            draw_text("Back", font, BLACK, screen, back_button.centerx, back_button.centery)
+        if message and pygame.time.get_ticks() < message_timer:
+            draw_text(virtual_screen, message, font, GREEN, VIRTUAL_WIDTH // 2, VIRTUAL_HEIGHT - 40)
 
-
-        # Draw message
-        if message:
-            draw_text(message, font, message_color, screen, SCREEN_WIDTH // 2, 500)
-
+        # --- Scale and Update ---
+        scaled_surface = pygame.transform.scale(virtual_screen, screen.get_size())
+        screen.blit(scaled_surface, (0, 0))
         pygame.display.flip()
 
+    pygame.quit()
+    sys.exit()
+
 if __name__ == "__main__":
-    bank_main()
+    main_menu()
